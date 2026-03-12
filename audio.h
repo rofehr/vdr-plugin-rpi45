@@ -84,7 +84,7 @@ public:
     auto Decode(const uint8_t *data, size_t size, int64_t pts) -> void;
     [[nodiscard]] auto OpenCodec(AVCodecID codecId, int sampleRate, int channels) -> bool;
     [[nodiscard]] auto GetClock() const noexcept -> int64_t;
-    auto SetVolume(int vol) noexcept -> void;
+    auto SetVolume(int vol) -> void;
 
 private:
     auto Action() -> void override;
