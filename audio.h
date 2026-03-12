@@ -31,6 +31,7 @@ extern "C" {
 #pragma GCC diagnostic pop
 
 #include <vdr/thread.h>
+#include <vdr/tools.h>
 
 // ============================================================================
 // === HILFSTYPEN ===
