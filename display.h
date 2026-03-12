@@ -25,6 +25,7 @@ extern "C" {
 }
 #pragma GCC diagnostic pop
 
+#include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <vdr/thread.h>
 
