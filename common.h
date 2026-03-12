@@ -6,9 +6,10 @@
  */
 #pragma once
 
-#include <string_view>
 #include <array>
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
