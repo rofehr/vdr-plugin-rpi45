@@ -21,6 +21,8 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+
+#include <vdr/plugin.h>
 #include <vdr/tools.h>
 
 // ============================================================================
