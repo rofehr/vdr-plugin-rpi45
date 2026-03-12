@@ -136,7 +136,8 @@ private:
     // --- Hilfstypen ---
     struct FreeAVPacket      { auto operator()(AVPacket      *p) const noexcept -> void { av_packet_free(&p);        } };
     struct FreeAVFrame       { auto operator()(AVFrame       *f) const noexcept -> void { av_frame_free(&f);         } };
-    struct FreeAVCodecCtx    { auto operator()(AVCodecContext*c) const noexcept -> void { avcodec_free_context(&c);  } };
+    struct FreeAVParser    { auto operator()(AVCodecParserContext *p) const noexcept -> void { av_parser_close(p);        } };
+    struct FreeAVCodecCtx  { auto operator()(AVCodecContext*c) const noexcept -> void { avcodec_free_context(&c);  } };
     struct FreeFilterGraph   { auto operator()(AVFilterGraph *g) const noexcept -> void { avfilter_graph_free(&g);   } };
 
     // --- Thread ---
@@ -157,9 +158,7 @@ private:
     // --- Codec-Zustand ---
     mutable cMutex  codecMutex;
     std::unique_ptr<AVCodecContext,     FreeAVCodecCtx>  codecCtx;
-    std::unique_ptr<AVCodecParserContext,
-        decltype([](AVCodecParserContext *p){ av_parser_close(p); })> parserCtx{nullptr,
-        [](AVCodecParserContext *p){ av_parser_close(p); }};
+    std::unique_ptr<AVCodecParserContext, FreeAVParser>  parserCtx;
     AVCodecID currentCodecId{AV_CODEC_ID_NONE};
     bool      isSoftwareDecode{false};
 

@@ -123,9 +123,8 @@ private:
 
     // --- Codec ---
     std::unique_ptr<AVCodecContext, FreeAVCodecContext> decoder;
-    std::unique_ptr<AVCodecParserContext,
-        decltype([](AVCodecParserContext *p){ av_parser_close(p); })> parserCtx{nullptr,
-        [](AVCodecParserContext *p){ av_parser_close(p); }};
+    struct FreeAVParser { auto operator()(AVCodecParserContext *p) const noexcept -> void { av_parser_close(p); } };
+    std::unique_ptr<AVCodecParserContext, FreeAVParser> parserCtx;
     std::unique_ptr<SwrContext, FreeSwrContext> swrCtx;
     std::unique_ptr<AVFrame, FreeAVFrame> decodedFrame;
     std::unique_ptr<AVFrame, FreeAVFrame> resampledFrame;
