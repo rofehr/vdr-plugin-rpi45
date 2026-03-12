@@ -243,7 +243,7 @@ auto cAudioProcessor::Decode(const uint8_t *data, size_t size, int64_t pts) -> v
         return false;
     }
 
-    SetStreamParams({.channels = channels, .codecId = codecId, .sampleRate = sampleRate});
+    SetStreamParams({.codecId = codecId, .sampleRate = sampleRate, .channels = channels});
     return true;
 }
 
