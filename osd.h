@@ -98,7 +98,7 @@ public:
     ~cRpi5Osd() override;
 
     // --- VDR-OSD-Schnittstelle ---
-    auto Flush() -> eOsdError override;
+    auto Flush() -> void override;
 
 private:
     // --- Interne Hilfsmethoden ---

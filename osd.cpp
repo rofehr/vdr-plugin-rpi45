@@ -317,8 +317,8 @@ auto cRpi5Osd::UploadToDisplay() -> void {
  *  4. Alle Bitmaps compositen
  *  5. FB-ID an Display übergeben → nächster Page-Flip zeigt OSD
  */
-auto cRpi5Osd::Flush() -> eOsdError {
-    if (!IsDirty()) return oeOk;
+auto cRpi5Osd::Flush() -> void {
+    if (!IsDirty()) return;
 
     // Bounding-Box aller Bitmaps berechnen
     int maxX = 0;
@@ -343,26 +343,24 @@ auto cRpi5Osd::Flush() -> eOsdError {
         }
         dumbBuf = DumbBuffer{};
         bufWidth = bufHeight = 0;
-        return oeOk;
+        return;
     }
 
     const auto width  = static_cast<uint32_t>(maxX);
     const auto height = static_cast<uint32_t>(maxY);
 
-    if (width == 0 || height == 0) return oeOk;
+    if (width == 0 || height == 0) return;
 
     // Buffer sicherstellen
     if (!EnsureBuffer(width, height)) {
         esyslog("rpi5video/osd: Dumb-Buffer %ux%u allozieren fehlgeschlagen", width, height);
-        return oeOutOfMemory;
+        return;
     }
 
     // Compositing
     ClearBuffer();
     CompositeBitmaps();
     UploadToDisplay();
-
-    return oeOk;
 }
 
 // ============================================================================
