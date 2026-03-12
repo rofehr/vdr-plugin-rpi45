@@ -1,6 +1,6 @@
-# rpi5video – VDR-Ausgabe-Plugin für Raspberry Pi 5
+# rpi5video – VDR-Ausgabe-Plugin für Raspberry Pi 4/5
 
-VDR 2.7.9 Ausgabe-Plugin für den Raspberry Pi 5.  
+VDR 2.7.9 Ausgabe-Plugin für den Raspberry Pi 4/5.  
 Hardware-Decoder über **FFmpeg + v4l2_request**, Ausgabe über **DRM Atomic**.
 
 ---
@@ -144,4 +144,5 @@ rpi5video/
 ├── display.h/.cpp  ← DRM-Atomic-Ausgabe
 ├── device.h/.cpp   ← VDR-Device
 └── plugin.cpp      ← Plugin-Einstiegspunkt
+└── osd.h/.cpp      ← OSD
 ```
