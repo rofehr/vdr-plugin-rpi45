@@ -318,8 +318,6 @@ auto cRpi5Osd::UploadToDisplay() -> void {
  *  5. FB-ID an Display übergeben → nächster Page-Flip zeigt OSD
  */
 auto cRpi5Osd::Flush() -> void {
-    if (!IsDirty()) return;
-
     // Bounding-Box aller Bitmaps berechnen
     int maxX = 0;
     int maxY = 0;
