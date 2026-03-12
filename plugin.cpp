@@ -18,7 +18,9 @@ extern "C" {
 }
 #pragma GCC diagnostic pop
 
-#include <vdr/plugin.h>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 #include <vdr/tools.h>
 
 // ============================================================================
@@ -68,7 +70,7 @@ private:
             rpi5Config.audioDevice = argv[++i];
         } else if (std::string_view(argv[i]) == "-r" && i + 1 < argc) {
             unsigned w = 0, h = 0, r = 0;
-            if (std::sscanf(argv[++i], "%ux%u@%u", &w, &h, &r) == 3 && w > 0 && h > 0 && r > 0) {
+            if (sscanf(argv[++i], "%ux%u@%u", &w, &h, &r) == 3 && w > 0 && h > 0 && r > 0) {
                 rpi5Config.display.width       = w;
                 rpi5Config.display.height      = h;
                 rpi5Config.display.refreshRate = r;
@@ -93,7 +95,7 @@ private:
     av_log_set_callback([](void *, int level, const char *fmt, va_list vl) {
         if (level > AV_LOG_WARNING) return;
         char buf[512];
-        std::vsnprintf(buf, sizeof(buf), fmt, vl);
+        vsnprintf(buf, sizeof(buf), fmt, vl);
         // Zeilenumbruch entfernen
         for (char *p = buf; *p; ++p) if (*p == '\n') *p = '\0';
         if (level <= AV_LOG_ERROR)   esyslog("FFmpeg: %s", buf);
@@ -165,10 +167,10 @@ private:
 }
 
 [[nodiscard]] auto cPluginRpi5Video::SetupParse(const char *Name, const char *Value) -> bool {
-    if      (std::strcmp(Name, "AudioLatency") == 0) rpi5Config.audioLatency = std::atoi(Value);
-    else if (std::strcmp(Name, "Deinterlace")  == 0) rpi5Config.deinterlace  = std::atoi(Value) != 0;
-    else if (std::strcmp(Name, "Denoise")      == 0) rpi5Config.denoise      = std::atoi(Value) != 0;
-    else if (std::strcmp(Name, "Sharpness")    == 0) rpi5Config.sharpness    = std::atoi(Value) != 0;
+    if      (strcmp(Name, "AudioLatency") == 0) rpi5Config.audioLatency = atoi(Value);
+    else if (strcmp(Name, "Deinterlace")  == 0) rpi5Config.deinterlace  = atoi(Value) != 0;
+    else if (strcmp(Name, "Denoise")      == 0) rpi5Config.denoise      = atoi(Value) != 0;
+    else if (strcmp(Name, "Sharpness")    == 0) rpi5Config.sharpness    = atoi(Value) != 0;
     else return false;
     return true;
 }
