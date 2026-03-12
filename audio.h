@@ -3,6 +3,9 @@
 /**
  * @file audio.h
  * @brief ALSA-Ausgabe mit IEC61937-Passthrough und PCM-Fallback
+ *
+ * Portiert vom vaapivideo-Plugin; keine VAAPI-Abhängigkeiten,
+ * läuft unverändert auf dem RPi5.
  */
 #pragma once
 
@@ -26,6 +29,7 @@ extern "C" {
 #include <libavcodec/packet.h>
 #include <libavutil/avutil.h>
 #include <libavutil/frame.h>
+#include <libavutil/samplefmt.h>
 #include <libswresample/swresample.h>
 }
 #pragma GCC diagnostic pop
@@ -43,105 +47,95 @@ struct FreeAVPacket {
 struct FreeAVFrame {
     auto operator()(AVFrame *f) const noexcept -> void { av_frame_free(&f); }
 };
-struct FreeSwrContext {
-    auto operator()(SwrContext *s) const noexcept -> void { swr_free(&s); }
-};
 struct FreeAVCodecContext {
     auto operator()(AVCodecContext *c) const noexcept -> void { avcodec_free_context(&c); }
+};
+struct FreeAVParser {
+    auto operator()(AVCodecParserContext *p) const noexcept -> void { av_parser_close(p); }
+};
+
+// ============================================================================
+// === STREAM-PARAMETER ===
+// ============================================================================
+
+struct AudioStreamParams {
+    AVCodecID      codecId{AV_CODEC_ID_NONE};
+    int            sampleRate{48000};
+    int            channels{2};
+    const uint8_t *extradata{nullptr};
+    int            extradataSize{0};
 };
 
 // ============================================================================
 // === AUDIO PROCESSOR ===
 // ============================================================================
 
-/**
- * @brief Dekodiert Audio-ES-Daten und gibt sie über ALSA aus.
- *
- * Läuft in einem eigenen Thread (Action()). Unterstützt:
- *  - PCM-Ausgabe (S16LE, Stereo, Resample via libswresample)
- *  - IEC61937-Passthrough für AC-3, E-AC-3, DTS
- *  - Software-Lautstärkeregelung (PCM-Modus)
- *  - Dreistufige ALSA-Fehlerbehandlung
- */
 class cAudioProcessor : public cThread {
 public:
     cAudioProcessor();
     ~cAudioProcessor() noexcept override;
 
-    // --- Lebenszyklus ---
     [[nodiscard]] auto Initialize(std::string_view alsaDevice) -> bool;
     auto Stop()     -> void;
-    auto Clear()    -> void; ///< Puffer sofort leeren, ALSA zurücksetzen
+    auto Clear()    -> void;
     [[nodiscard]] auto IsInitialized() const noexcept -> bool;
     [[nodiscard]] auto IsQueueFull()   const          -> bool;
 
-    // --- Dateneingabe ---
     auto Decode(const uint8_t *data, size_t size, int64_t pts) -> void;
-
-    // --- A/V-Sync ---
-    /**
-     * @brief Liefert den aktuellen Audio-Wiedergabe-Uhr-Wert (90 kHz).
-     *
-     * clock = pcmQueueEndPts - ALSA-Puffer-Delay
-     * Gibt AV_NOPTS_VALUE zurück wenn keine Uhr verfügbar ist.
-     */
+    [[nodiscard]] auto OpenCodec(AVCodecID codecId, int sampleRate, int channels) -> bool;
     [[nodiscard]] auto GetClock() const noexcept -> int64_t;
-
-    // --- Lautstärke ---
     auto SetVolume(int vol) noexcept -> void;
 
-    // --- Codec-Parameter ---
-    struct StreamParams {
-        AVCodecID codecId{AV_CODEC_ID_NONE};
-        int sampleRate{48000};
-        int channels{2};
-    };
-    auto OpenCodec(AVCodecID codecId, int sampleRate, int channels) -> bool;
-
 private:
-    // --- Thread ---
     auto Action() -> void override;
 
-    // --- Interne Methoden ---
     [[nodiscard]] auto OpenAlsaDevice()  -> bool;
-    [[nodiscard]] auto EnqueuePacket(AVPacket *pkt) -> bool;
-    [[nodiscard]] auto DecodeToPcm()     -> bool;
+    [[nodiscard]] auto ConfigureAlsaParams(snd_pcm_t *handle, snd_pcm_format_t format,
+                                            unsigned channels, unsigned rate,
+                                            bool allowResample) -> bool;
+    [[nodiscard]] auto EnqueuePacket(const AVPacket *rawPacket) -> bool;
+    [[nodiscard]] auto DecodeToPcm(std::span<const uint8_t> data, int64_t pts) -> bool;
     [[nodiscard]] auto WritePcmToAlsa(std::span<const uint8_t> data,
                                       int64_t startPts90k, unsigned frames) -> bool;
     [[nodiscard]] auto WriteToAlsa(std::span<const uint8_t> data) -> bool;
-    auto Shutdown() -> void;
-    auto ProbeSinkCaps() -> void;
-    auto SetupPassthrough(AVCodecID codecId) -> bool;
+    [[nodiscard]] auto CanPassthrough(AVCodecID codecId) const -> bool;
+    [[nodiscard]] auto ComputeAlsaRate(AVCodecID codecId, unsigned streamRate,
+                                        bool passthrough) const -> unsigned;
+    auto SetStreamParams(const AudioStreamParams &params) -> void;
+    auto OpenDecoder()  -> void;
+    auto CloseDecoder() -> void;
+    auto ProbeSinkCaps()-> void;
+    auto Shutdown()     -> void;
 
-    // --- ALSA ---
+    // ALSA
     snd_pcm_t      *alsaHandle{nullptr};
     std::string     alsaDeviceName;
     unsigned        alsaSampleRate{0};
+    unsigned        alsaChannels{0};
     size_t          alsaFrameBytes{0};
     bool            alsaPassthroughActive{false};
     cTimeMs         lastReopenAttempt;
 
-    // --- Codec ---
-    std::unique_ptr<AVCodecContext, FreeAVCodecContext> decoder;
-    struct FreeAVParser { auto operator()(AVCodecParserContext *p) const noexcept -> void { av_parser_close(p); } };
-    std::unique_ptr<AVCodecParserContext, FreeAVParser> parserCtx;
-    std::unique_ptr<SwrContext, FreeSwrContext> swrCtx;
-    std::unique_ptr<AVFrame, FreeAVFrame> decodedFrame;
-    std::unique_ptr<AVFrame, FreeAVFrame> resampledFrame;
-    StreamParams streamParams;
+    // Codec
+    std::unique_ptr<AVCodecContext,       FreeAVCodecContext> decoder;
+    std::unique_ptr<AVCodecParserContext, FreeAVParser>       parserCtx;
+    SwrContext     *swrCtx{nullptr};
+    AVSampleFormat  swrFormat{AV_SAMPLE_FMT_NONE};
+    int             swrChannels{0};
+    AudioStreamParams streamParams;
 
-    // --- Warteschlange ---
-    mutable std::unique_ptr<cMutex> mutex;
-    cCondVar                         queueCondition;
-    std::queue<AVPacket *>           packetQueue;
+    // Warteschlange
+    std::unique_ptr<cMutex> mutex;
+    cCondVar                packetCondition;
+    std::queue<AVPacket *>  packetQueue;
 
-    // --- Uhren (atomisch für lock-freies Lesen durch Decoder-Thread) ---
+    // Uhren
     std::atomic<int64_t>  playbackPts{AV_NOPTS_VALUE};
     std::atomic<uint32_t> clearGeneration{0};
-    int64_t               pcmQueueEndPts{AV_NOPTS_VALUE}; ///< Unter Mutex geschützt
+    int64_t               pcmQueueEndPts{AV_NOPTS_VALUE};
     int64_t               pcmNextPts{AV_NOPTS_VALUE};
 
-    // --- Zustands-Flags ---
+    // Zustands-Flags
     std::atomic<bool> initialized{false};
     std::atomic<bool> stopping{false};
     std::atomic<bool> hasExited{false};
@@ -149,13 +143,18 @@ private:
     std::atomic<int>  volume{255};
     std::atomic<int>  alsaErrorCount{0};
 
-    // --- Sink-Fähigkeiten ---
+    // Decoder-Fehlerbehandlung
+    std::atomic<int> decoderRefCount{0};
+    std::atomic<int> decoderGracePackets{0};
+    int              consecutiveDecodeErrors{0};
+    cTimeMs          lastDecodeErrorLog;
+    cTimeMs          lastQueueWarn;
+
+    // Sink-Fähigkeiten
     struct HdmiSinkCaps {
         bool ac3{false}, eac3{false}, truehd{false};
         bool dts{false}, dtshd{false}, ac4{false}, mpegh3d{false};
     } sinkCaps;
-
-    int decoderGracePackets{0};
-    int decoderErrorCount{0};
-    cTimeMs lastErrorLog;
+    bool        sinkCapsCached{false};
+    std::string sinkCapsDevice;
 };
