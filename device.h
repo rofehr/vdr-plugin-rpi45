@@ -87,6 +87,7 @@ private:
     std::unique_ptr<cAudioProcessor>  audioProcessor;
     std::unique_ptr<cRpi5Display>     display;
     std::unique_ptr<cRpi5Decoder>     decoder;
+    cRpi5OsdProvider                 *osdProvider{nullptr}; ///< Eigentümer: VDR (via new)
 
     // --- Hardware-Kontext ---
     Rpi5Context        rpi5;

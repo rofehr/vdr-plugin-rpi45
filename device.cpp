@@ -55,9 +55,8 @@ cRpi5Device::~cRpi5Device() noexcept {
     DetachAllReceivers();
 
     // OSD-Provider vom Display trennen bevor Display zerstört wird
-    if (::osdProvider) {
-        if (auto *p = dynamic_cast<cRpi5OsdProvider *>(::osdProvider))
-            p->DetachDisplay();
+    if (osdProvider) {
+        osdProvider->DetachDisplay();
     }
 
     if (audioProcessor || decoder || display) Stop();
@@ -120,16 +119,15 @@ auto cRpi5Device::MakePrimaryDevice(bool On) -> void {
     if (On) {
         if (IsPrimaryDevice()) {
             isyslog("rpi5video/device: als primäres Gerät aktiviert");
-            // OSD-Provider einmalig registrieren (VDR verwaltet Lebenszyklus)
-            if (!::osdProvider && display) {
-                ::osdProvider = new cRpi5OsdProvider(drmFd, display.get());
+            // OSD-Provider einmalig erstellen; VDR übernimmt Lebenszyklus
+            // via cOsdProvider-Registrierung (new registriert automatisch)
+            if (!osdProvider && display) {
+                osdProvider = new cRpi5OsdProvider(drmFd, display.get());
                 isyslog("rpi5video/device: OSD-Provider registriert");
-            } else if (::osdProvider) {
+            } else if (osdProvider) {
                 // Beim Re-Attach: vorhandenen Provider neu verbinden
-                if (auto *rpiProvider = dynamic_cast<cRpi5OsdProvider *>(::osdProvider)) {
-                    rpiProvider->AttachDisplay(display.get());
-                    dsyslog("rpi5video/device: OSD-Provider mit Display verbunden");
-                }
+                osdProvider->AttachDisplay(display.get());
+                dsyslog("rpi5video/device: OSD-Provider mit Display verbunden");
             }
         } else {
             esyslog("rpi5video/device: als primäres Gerät aktivieren fehlgeschlagen");
@@ -418,9 +416,8 @@ auto cRpi5Device::Detach() -> void {
     isyslog("rpi5video/device: Hardware wird freigegeben");
 
     // OSD-Provider vom Display trennen bevor Display gestoppt wird
-    if (::osdProvider) {
-        if (auto *p = dynamic_cast<cRpi5OsdProvider *>(::osdProvider))
-            p->DetachDisplay();
+    if (osdProvider) {
+        osdProvider->DetachDisplay();
     }
 
     Stop();
