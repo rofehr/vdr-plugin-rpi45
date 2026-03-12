@@ -16,8 +16,19 @@
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 extern "C" {
 #include <libavutil/error.h>
+#include <libavutil/hwcontext.h>
 }
 #pragma GCC diagnostic pop
+
+// AV_HWDEVICE_TYPE_V4L2REQUEST wurde in FFmpeg 5.1 hinzugefügt.
+// Auf älteren Builds (z.B. FFmpeg 4.x in Buildroot) fehlt der Wert.
+#ifndef AV_HWDEVICE_TYPE_V4L2REQUEST
+// Wert aus ffmpeg/libavutil/hwcontext.h (upstream commit b78c00b):
+// Muss mit dem tatsächlichen Kernel-Build übereinstimmen.
+// Falls der Wert abweicht: FFmpeg mit --enable-v4l2-request neu bauen.
+static constexpr AVHWDeviceType AV_HWDEVICE_TYPE_V4L2REQUEST =
+    static_cast<AVHWDeviceType>(14);
+#endif
 
 // ============================================================================
 // === VERSION ===
