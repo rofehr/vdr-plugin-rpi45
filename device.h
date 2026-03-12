@@ -10,6 +10,7 @@
 #include "audio.h"
 #include "decoder.h"
 #include "display.h"
+#include "osd.h"
 
 #include <atomic>
 #include <memory>

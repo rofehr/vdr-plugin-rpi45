@@ -11,6 +11,7 @@
 #include "config.h"
 #include "decoder.h"
 #include "display.h"
+#include "osd.h"
 #include "pes.h"
 
 #include <fcntl.h>
@@ -52,6 +53,13 @@ cRpi5Device::cRpi5Device() {
 cRpi5Device::~cRpi5Device() noexcept {
     if (IsPrimaryDevice()) cDevice::MakePrimaryDevice(false);
     DetachAllReceivers();
+
+    // OSD-Provider vom Display trennen bevor Display zerstört wird
+    if (::osdProvider) {
+        if (auto *p = dynamic_cast<cRpi5OsdProvider *>(::osdProvider))
+            p->DetachDisplay();
+    }
+
     if (audioProcessor || decoder || display) Stop();
     ReleaseHardware();
     dsyslog("rpi5video/device: zerstört");
@@ -108,8 +116,27 @@ auto cRpi5Device::GetVideoSize(int &Width, int &Height, double &VideoAspect) -> 
 
 auto cRpi5Device::MakePrimaryDevice(bool On) -> void {
     cDevice::MakePrimaryDevice(On);
-    if (On && IsPrimaryDevice())
-        isyslog("rpi5video/device: als primäres Gerät aktiviert");
+
+    if (On) {
+        if (IsPrimaryDevice()) {
+            isyslog("rpi5video/device: als primäres Gerät aktiviert");
+            // OSD-Provider einmalig registrieren (VDR verwaltet Lebenszyklus)
+            if (!::osdProvider && display) {
+                ::osdProvider = new cRpi5OsdProvider(drmFd, display.get());
+                isyslog("rpi5video/device: OSD-Provider registriert");
+            } else if (::osdProvider) {
+                // Beim Re-Attach: vorhandenen Provider neu verbinden
+                if (auto *rpiProvider = dynamic_cast<cRpi5OsdProvider *>(::osdProvider)) {
+                    rpiProvider->AttachDisplay(display.get());
+                    dsyslog("rpi5video/device: OSD-Provider mit Display verbunden");
+                }
+            }
+        } else {
+            esyslog("rpi5video/device: als primäres Gerät aktivieren fehlgeschlagen");
+        }
+    } else {
+        isyslog("rpi5video/device: als primäres Gerät deaktiviert");
+    }
 }
 
 // ============================================================================
@@ -389,11 +416,19 @@ auto cRpi5Device::Stop() -> void {
 
 auto cRpi5Device::Detach() -> void {
     isyslog("rpi5video/device: Hardware wird freigegeben");
+
+    // OSD-Provider vom Display trennen bevor Display gestoppt wird
+    if (::osdProvider) {
+        if (auto *p = dynamic_cast<cRpi5OsdProvider *>(::osdProvider))
+            p->DetachDisplay();
+    }
+
     Stop();
     if (drmFd >= 0) drmDropMaster(drmFd);
     ReleaseHardware();
     osdWidth = osdHeight = 0;
     initState.store(0, std::memory_order_release);
+    isyslog("rpi5video/device: Hardware freigegeben");
 }
 
 [[nodiscard]] auto cRpi5Device::Attach() -> bool {
